@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="タイマー">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#3cc2b8">
+<title>インターバルタイマー</title>
+<style>
+:root{
+  --teal:#3cc2b8; --teal-d:#2fa79e; --teal-l:#e6f7f5;
+  --red:#e86060; --red-d:#b83a3a;
+  --orange:#f2a541; --blue:#5b8def; --purple:#9b7fd4;
+  --bg:#f2f2f6; --card:#fff; --text:#333; --sub:#8a8a8e; --line:#e3e3e8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;overscroll-behavior:none}
+button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
+#app{display:flex;flex-direction:column;height:100%;max-width:560px;margin:0 auto;background:#fff}
+header{background:var(--teal);color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;
+  display:flex;align-items:center;justify-content:space-between;min-height:56px;transition:background .3s}
+header h1{font-size:19px;margin:0;font-weight:600;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .hbtn{min-width:56px;font-size:17px;color:#fff;padding:4px}
+header .hbtn.l{text-align:left} header .hbtn.r{text-align:right}
+main{flex:1;overflow-y:auto;position:relative}
+.view{display:none;min-height:100%}
+.view.on{display:flex;flex-direction:column}
+nav{display:flex;border-top:1px solid var(--line);background:#fff;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:8px 0 6px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--sub)}
+nav button.on{color:var(--teal)}
+nav svg{width:26px;height:26px}
+
+/* timer */
+#timerView{background:#fff}
+.ring-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 0 8px;min-height:340px}
+.phase{font-size:18px;font-weight:700;letter-spacing:.08em;color:var(--teal);height:26px;transition:color .3s}
+.exname{font-size:20px;font-weight:600;min-height:28px;margin-top:4px;text-align:center;padding:0 20px}
+.ring{position:relative;width:min(72vw,300px);aspect-ratio:1;margin:10px 0}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .track{stroke:var(--teal);stroke-width:7;fill:none;opacity:.25;transition:stroke .3s}
+.ring .prog{stroke:var(--teal);stroke-width:7;fill:none;stroke-linecap:round;transition:stroke .3s}
+.ring .inner{fill:#efefef}
+.ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:"SF Mono",Menlo,monospace;font-size:min(24vw,104px);color:var(--teal);font-variant-numeric:tabular-nums;transition:color .3s}
+.next{font-size:14px;color:var(--sub);min-height:20px}
+.total{font-size:13px;color:var(--sub);margin-top:4px;font-variant-numeric:tabular-nums}
+.panel{background:#ddd;padding:12px 12px 14px}
+.counters{display:flex;gap:12px}
+.counter{flex:1;border:4px solid var(--teal);border-radius:12px;overflow:hidden;background:#fff}
+.counter .lab{background:var(--teal);color:#fff;text-align:center;font-size:20px;font-weight:600;padding:4px 0 6px}
+.counter .val{text-align:center;font-size:48px;color:var(--teal);padding:6px 0;font-variant-numeric:tabular-nums}
+.counter .val small{font-size:20px;color:var(--sub)}
+.ctrls{display:flex;gap:10px;margin-top:14px}
+.big{flex:1;background:var(--red);color:#fff;font-size:30px;font-weight:700;border-radius:8px;padding:12px 0;
+  box-shadow:0 5px 0 var(--red-d);transition:transform .05s}
+.big:active{transform:translateY(3px);box-shadow:0 2px 0 var(--red-d)}
+.big.pause{background:var(--orange);box-shadow:0 5px 0 #c27d24}
+.small{background:#fff;color:var(--text);font-size:15px;font-weight:600;border-radius:8px;padding:0 14px;box-shadow:0 5px 0 #bbb;min-width:72px}
+.small:active{transform:translateY(3px);box-shadow:0 2px 0 #bbb}
+.small[hidden]{display:none}
+
+/* lists */
+.folder{background:#fff;text-align:center;padding:10px;font-size:14px;color:var(--sub);border-bottom:1px solid var(--line)}
+.list{padding:14px;display:flex;flex-direction:column;gap:14px;background:#ececec;flex:1}
+.pcard{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15);border-radius:4px;overflow:hidden}
+.pcard.sel{outline:3px solid var(--red)}
+.pcard .ph{background:var(--teal);color:#fff;display:flex;align-items:center;padding:6px 8px;gap:8px}
+.pcard .ph .t{flex:1;text-align:center;font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .ph button{color:#fff;padding:4px}
+.pcard .ph svg{width:22px;height:22px;display:block}
+.pcard .pb{padding:12px 10px;text-align:center;color:#555}
+.pcard .main{font-size:15px}
+.pcard .main b{font-size:40px;font-weight:600}
+.pcard .sub2{display:flex;margin-top:6px}
+.pcard .sub2 div{flex:1;font-size:13px;font-weight:600}
+.pcard .sub2 b{display:block;font-size:30px;font-weight:600}
+.pcard .tt{font-size:12px;color:var(--sub);margin-top:6px}
+.empty{text-align:center;color:var(--sub);padding:40px 20px;font-size:14px;line-height:1.7}
+
+.hist{background:#fff}
+.hday{font-size:13px;color:var(--sub);padding:14px 16px 6px;background:var(--bg)}
+.hrow{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);gap:12px}
+.hrow .n{flex:1;font-size:15px}
+.hrow .n small{display:block;color:var(--sub);font-size:12px;margin-top:2px}
+.hrow .d{font-variant-numeric:tabular-nums;color:var(--teal);font-weight:600}
+.badge{font-size:11px;padding:2px 6px;border-radius:4px;background:var(--teal-l);color:var(--teal-d);margin-left:6px}
+.badge.x{background:#fde8e8;color:var(--red-d)}
+.stats{display:flex;background:#fff;border-bottom:1px solid var(--line)}
+.stats div{flex:1;text-align:center;padding:14px 4px}
+.stats b{display:block;font-size:22px;color:var(--teal);font-variant-numeric:tabular-nums}
+.stats span{font-size:12px;color:var(--sub)}
+
+/* forms */
+.form{background:var(--bg);padding-bottom:30px;flex:1}
+.sec{font-size:13px;color:var(--sub);padding:22px 16px 6px;text-transform:uppercase;letter-spacing:.03em}
+.group{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.row{display:flex;align-items:center;padding:0 16px;min-height:52px;border-bottom:1px solid var(--line);gap:10px}
+.row:last-child{border-bottom:0}
+.row label{flex:1;font-size:17px}
+.row input[type=text]{flex:1.4;border:0;font-size:17px;text-align:right;color:var(--sub);outline:none;background:none}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:34px;height:34px;border-radius:50%;background:var(--teal-l);color:var(--teal-d);font-size:20px;font-weight:700;line-height:1}
+.step input{width:52px;border:0;text-align:right;font-size:17px;color:var(--text);outline:none;background:none;font-variant-numeric:tabular-nums}
+.step .u{font-size:14px;color:var(--sub);min-width:30px}
+textarea{width:100%;border:0;font:inherit;font-size:16px;padding:12px 16px;min-height:120px;outline:none;resize:vertical}
+.hint{font-size:12px;color:var(--sub);padding:6px 16px;line-height:1.5}
+.switch{position:relative;width:51px;height:31px}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;background:#e5e5ea;border-radius:31px;transition:.2s}
+.switch span:before{content:"";position:absolute;width:27px;height:27px;left:2px;top:2px;background:#fff;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:.2s}
+.switch input:checked+span{background:#34c759}
+.switch input:checked+span:before{transform:translateX(20px)}
+.dbtn{display:block;width:calc(100% - 32px);margin:24px 16px 0;padding:14px;border-radius:10px;background:#fff;color:var(--red);font-size:17px}
+.summary{text-align:center;font-size:14px;color:var(--sub);padding:14px}
+
+/* sheet */
+.sheet{position:fixed;inset:0;z-index:20;display:none;justify-content:center}
+.sheet.on{display:flex}
+.sheet .inner{width:100%;max-width:560px;background:var(--bg);display:flex;flex-direction:column;height:100%}
+.sheet main{background:var(--bg)}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;
+  padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:30;white-space:nowrap}
+.toast.on{opacity:1}
+.dialog{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40;display:none;align-items:center;justify-content:center;padding:30px}
+.dialog.on{display:flex}
+.dialog .box{background:#fff;border-radius:14px;width:100%;max-width:300px;text-align:center;overflow:hidden}
+.dialog p{margin:0;padding:20px 16px;font-size:15px;line-height:1.5}
+.dialog .bt{display:flex;border-top:1px solid var(--line)}
+.dialog .bt button{flex:1;padding:13px;font-size:17px;color:var(--blue)}
+.dialog .bt button+button{border-left:1px solid var(--line);font-weight:600}
+.dialog .bt button.danger{color:var(--red)}
+
+/* phase colors */
+body.ph-prep{--cur:var(--orange)} body.ph-work{--cur:var(--red)} body.ph-rest{--cur:var(--teal)} body.ph-setrest{--cur:var(--blue)} body.ph-done{--cur:var(--purple)}
+body[class*="ph-"] #timerView .phase, body[class*="ph-"] #timerView .num{color:var(--cur)}
+body[class*="ph-"] #timerView .prog, body[class*="ph-"] #timerView .track{stroke:var(--cur)}
+body.running header{background:var(--cur,var(--teal))}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="hbtn l" id="hL"></button>
+    <h1 id="hTitle">タイマー</h1>
+    <button class="hbtn r" id="hR">Edit</button>
+  </header>
+  <main id="main">
+    <!-- TIMER -->
+    <section class="view on" id="timerView">
+      <div class="ring-wrap">
+        <div class="phase" id="phase">READY</div>
+        <div class="exname" id="exname"></div>
+        <div class="ring">
+          <svg viewBox="0 0 200 200">
+            <circle class="track" cx="100" cy="100" r="94"/>
+            <circle class="prog" id="prog" cx="100" cy="100" r="94" stroke-dasharray="590.6" stroke-dashoffset="0"/>
+            <circle class="inner" cx="100" cy="100" r="84"/>
+          </svg>
+          <div class="num" id="num">20</div>
+        </div>
+        <div class="next" id="next"></div>
+        <div class="total" id="total"></div>
+      </div>
+      <div class="panel">
+        <div class="counters">
+          <div class="counter"><div class="lab">sets</div><div class="val" id="vSets">1</div></div>
+          <div class="counter"><div class="lab">count</div><div class="val" id="vCount">8</div></div>
+        </div>
+        <div class="ctrls">
+          <button class="small" id="bReset" hidden>リセット</button>
+          <button class="big" id="bStart">Start</button>
+          <button class="small" id="bSkip" hidden>スキップ</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="view hist" id="histView"></section>
+
+    <!-- MENU -->
+    <section class="view" id="menuView">
+      <div class="folder">タップでタイマーにセット</div>
+      <div class="list" id="menuList"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view form" id="setView">
+      <div class="sec">サウンド</div>
+      <div class="group">
+        <div class="row"><label>効果音</label><div class="switch"><input type="checkbox" id="sSound"><span></span></div></div>
+        <div class="row"><label>音声で種目を読み上げ</label><div class="switch"><input type="checkbox" id="sVoice"><span></span></div></div>
+        <div class="row"><label>音量</label><input type="range" id="sVol" min="0" max="1" step="0.1" style="flex:1"></div>
+      </div>
+      <div class="sec">画面</div>
+      <div class="group">
+        <div class="row"><label>実行中に画面をスリープさせない</label><div class="switch"><input type="checkbox" id="sWake"><span></span></div></div>
+      </div>
+      <div class="hint">iPhoneのマナーモード中は効果音が鳴らないことがあります。音が出ないときはマナースイッチを確認してください。</div>
+      <div class="sec">データ</div>
+      <div class="group">
+        <div class="row"><label>メニュー・履歴を書き出し</label><button class="small" style="box-shadow:none;background:var(--teal-l);color:var(--teal-d);padding:8px 12px" id="bExport">コピー</button></div>
+        <div class="row"><label>読み込み</label><button class="small" style="box-shadow:none;background:var(--teal-l);color:var(--teal-d);padding:8px 12px" id="bImport">貼り付け</button></div>
+      </div>
+      <div class="hint">データはこのブラウザ内にだけ保存されます。機種変更やブラウザ変更の前に「コピー」でバックアップしてください。</div>
+      <button class="dbtn" id="bClearHist">履歴をすべて削除</button>
+    </section>
+  </main>
+  <nav>
+    <button data-v="timerView" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4M10 2h4M18.5 6.5l1.5-1.5"/></svg>Timer</button>
+    <button data-v="histView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>History</button>
+    <button data-v="menuView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Menu</button>
+    <button data-v="setView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+  </nav>
+</div>
+
+<!-- EDIT SHEET -->
+<div class="sheet" id="sheet">
+  <div class="inner">
+    <header style="background:var(--teal)">
+      <button class="hbtn l" id="eClose" aria-label="閉じる"><svg width="24" height="24" viewBox="0 0 24 24" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <h1>Edit</h1>
+      <button class="hbtn r" id="eSave">Save</button>
+    </header>
+    <main>
+      <div class="form">
+        <div class="sec" style="padding-top:16px"></div>
+        <div class="group"><div class="row"><label>Name</label><input type="text" id="fName" placeholder="Not set"></div></div>
+        <div class="sec">Menu</div>
+        <div class="group"><div class="row"><label>Register to menu</label><div class="switch"><input type="checkbox" id="fReg"><span></span></div></div></div>
+        <div class="sec">Training menu (1 set)</div>
+        <div class="group" id="g1"></div>
+        <div class="sec">Set setting</div>
+        <div class="group" id="g2"></div>
+        <div class="sec">Notify remaining time by sound</div>
+        <div class="group" id="g3"></div>
+        <div class="sec">種目リスト（任意）</div>
+        <div class="group"><textarea id="fEx" placeholder="1行に1種目&#10;例：&#10;ケトルベルロウ&#10;ケトルベルツイスト&#10;マウンテンクライマー"></textarea></div>
+        <div class="hint">countの順に表示します。種目数がcountより少ない場合は最初に戻って繰り返します。</div>
+        <div class="summary" id="fSum"></div>
+        <button class="dbtn" id="eDelete">このメニューを削除</button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="dialog" id="dlg"><div class="box"><p id="dlgMsg"></p><div class="bt"><button id="dlgNo">キャンセル</button><button id="dlgYes">OK</button></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+
+/* ---------- storage ---------- */
+const KEY='ivtimer.v1';
+const DEFAULT={
+  current:{name:'タバタ',prep:5,work:20,rest:10,reps:8,sets:1,setRest:30,warnWork:3,warnRest:3,ex:''},
+  currentId:null,
+  menus:[
+    {id:'m1',name:'スタビライゼーション',prep:5,work:60,rest:30,reps:12,sets:1,setRest:10,warnWork:3,warnRest:3,ex:''},
+    {id:'m2',name:'30秒サーキット',prep:5,work:30,rest:10,reps:8,sets:3,setRest:60,warnWork:3,warnRest:3,ex:'Kettle Rowing\nKettle Twist\nマウンテンクライマー'},
+    {id:'m3',name:'タバタ',prep:5,work:20,rest:10,reps:8,sets:1,setRest:30,warnWork:3,warnRest:3,ex:''}
+  ],
+  history:[],
+  settings:{sound:true,voice:false,vol:0.8,wake:true}
+};
+let S;
+function load(){
+  try{const r=localStorage.getItem(KEY); S=r?JSON.parse(r):null;}catch(e){S=null;}
+  if(!S) S=JSON.parse(JSON.stringify(DEFAULT));
+  S.settings=Object.assign({},DEFAULT.settings,S.settings||{});
+  S.menus=S.menus||[]; S.history=S.history||[];
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+load();
+
+/* ---------- util ---------- */
+const fmt=s=>{s=Math.max(0,Math.round(s));const m=Math.floor(s/60),x=s%60;return m+':'+String(x).padStart(2,'0');};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function totalSec(c){return c.prep+c.sets*(c.reps*c.work+(c.reps-1)*c.rest)+(c.sets-1)*c.setRest;}
+function exList(c){return (c.ex||'').split('\n').map(s=>s.trim()).filter(Boolean);}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),1800);}
+function ask(msg,okLabel,danger){return new Promise(res=>{
+  $('dlgMsg').textContent=msg;$('dlgYes').textContent=okLabel||'OK';$('dlgYes').className=danger?'danger':'';
+  $('dlg').classList.add('on');
+  $('dlgYes').onclick=()=>{$('dlg').classList.remove('on');res(true);};
+  $('dlgNo').onclick=()=>{$('dlg').classList.remove('on');res(false);};
+});}
+
+/* ---------- audio ---------- */
+let ac=null;
+function unlockAudio(){
+  try{
+    if(!ac){const A=window.AudioContext||window.webkitAudioContext; if(A) ac=new A();}
+    if(ac&&ac.state==='suspended') ac.resume();
+    if(ac){const b=ac.createBuffer(1,1,22050),s=ac.createBufferSource();s.buffer=b;s.connect(ac.destination);s.start(0);}
+  }catch(e){}
+}
+function beep(freq,dur,count){
+  if(!S.settings.sound||!ac) return;
+  try{
+    count=count||1;
+    for(let i=0;i<count;i++){
+      const t=ac.currentTime+i*(dur+0.08);
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='sine';o.frequency.value=freq;
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.001,S.settings.vol),t+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+dur+0.02);
+    }
+  }catch(e){}
+}
+function speak(txt){
+  if(!S.settings.voice||!txt||!('speechSynthesis' in window)) return;
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang=/[ぁ-んァ-ン一-龥]/.test(txt)?'ja-JP':'en-US';u.volume=S.settings.vol;speechSynthesis.speak(u);}catch(e){}
+}
+
+/* ---------- wake lock ---------- */
+let wl=null;
+async function wakeOn(){if(!S.settings.wake)return;try{if('wakeLock' in navigator) wl=await navigator.wakeLock.request('screen');}catch(e){}}
+function wakeOff(){try{wl&&wl.release();}catch(e){} wl=null;}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&T.state==='run') wakeOn();});
+
+/* ---------- timer engine ---------- */
+const CIRC=2*Math.PI*94;
+const PH={prep:'READY',work:'WORK',rest:'REST',setrest:'SET REST',done:'FINISH'};
+let T={state:'idle',plan:[],idx:0,phaseEnd:0,remain:0,elapsedBefore:0,startedAt:0,lastSec:null,raf:null};
+
+function buildPlan(c){
+  const p=[]; const ex=exList(c);
+  if(c.prep>0) p.push({k:'prep',d:c.prep,set:1,rep:0});
+  for(let s=1;s<=c.sets;s++){
+    for(let r=1;r<=c.reps;r++){
+      p.push({k:'work',d:c.work,set:s,rep:r,ex:ex.length?ex[(r-1)%ex.length]:''});
+      if(r<c.reps&&c.rest>0) p.push({k:'rest',d:c.rest,set:s,rep:r});
+    }
+    if(s<c.sets&&c.setRest>0) p.push({k:'setrest',d:c.setRest,set:s,rep:c.reps});
+  }
+  return p;
+}
+function nextWork(i){for(let j=i+1;j<T.plan.length;j++) if(T.plan[j].k==='work') return T.plan[j]; return null;}
+
+function setPhaseClass(k){
+  document.body.className=document.body.className.replace(/\bph-\w+/g,'').trim();
+  if(k) document.body.classList.add('ph-'+k);
+}
+function enterPhase(i,now){
+  T.idx=i; const ph=T.plan[i];
+  T.phaseEnd=now+ph.d*1000; T.lastSec=null;
+  setPhaseClass(ph.k);
+  if(ph.k==='work'){beep(1320,0.45);speak(ph.ex||'スタート');}
+  else if(ph.k==='rest'||ph.k==='setrest'){beep(660,0.45); const n=nextWork(i); if(n&&n.ex) speak('次は '+n.ex);}
+  else if(ph.k==='prep'){const n=nextWork(i); if(n&&n.ex) speak(n.ex);}
+  render();
+}
+function start(){
+  unlockAudio();
+  const c=S.current;
+  if(T.state==='idle'||T.state==='done'){
+    T.plan=buildPlan(c);
+    if(!T.plan.length){toast('時間を設定してください');return;}
+    T.elapsedBefore=0; T.startedAt=Date.now();
+    T.state='run'; enterPhase(0,performance.now());
+    T.cfgName=c.name||'無題';
+  }else if(T.state==='pause'){
+    T.state='run'; T.phaseEnd=performance.now()+T.remain; T.startedAt=Date.now();
+  }
+  document.body.classList.add('running'); wakeOn(); loop(); render();
+}
+function pause(){
+  if(T.state!=='run')return;
+  T.remain=T.phaseEnd-performance.now(); T.elapsedBefore+=Date.now()-T.startedAt;
+  T.state='pause'; cancelAnimationFrame(T.raf); wakeOff(); render();
+}
+function finish(completed){
+  cancelAnimationFrame(T.raf);
+  if(T.state==='run') T.elapsedBefore+=Date.now()-T.startedAt;
+  const dur=T.elapsedBefore/1000;
+  if(dur>=5){
+    const doneReps=T.plan.slice(0,completed?T.plan.length:T.idx).filter(p=>p.k==='work').length;
+    S.history.unshift({at:Date.now(),name:T.cfgName,dur:Math.round(dur),done:completed,reps:doneReps,total:T.plan.filter(p=>p.k==='work').length});
+    S.history=S.history.slice(0,500); save();
+  }
+  wakeOff(); document.body.classList.remove('running');
+  if(completed){T.state='done';setPhaseClass('done');beep(1320,0.18,3);speak('お疲れさまでした');}
+  else{T.state='idle';setPhaseClass(null);}
+  render(); if($('histView').classList.contains('on')) renderHist();
+}
+function skip(){
+  if(T.state!=='run'&&T.state!=='pause')return;
+  if(T.idx+1>=T.plan.length){finish(true);return;}
+  enterPhase(T.idx+1,performance.now());
+  if(T.state==='pause') T.remain=T.plan[T.idx].d*1000;
+  render();
+}
+function loop(){
+  if(T.state!=='run')return;
+  const now=performance.now();
+  let left=T.phaseEnd-now;
+  while(left<=0){
+    if(T.idx+1>=T.plan.length){finish(true);return;}
+    const over=-left; enterPhase(T.idx+1,now-over); left=T.phaseEnd-now;
+  }
+  const ph=T.plan[T.idx]; const sec=Math.ceil(left/1000);
+  if(sec!==T.lastSec){
+    T.lastSec=sec;
+    const warn=ph.k==='work'?S.current.warnWork:S.current.warnRest;
+    if(sec<=warn&&sec>=1&&sec<ph.d) beep(880,0.12);
+  }
+  draw(left);
+  T.raf=requestAnimationFrame(loop);
+}
+function draw(left){
+  const ph=T.plan[T.idx]; if(!ph)return;
+  const frac=Math.max(0,Math.min(1,left/(ph.d*1000)));
+  $('prog').style.strokeDashoffset=String(CIRC*(1-frac));
+  $('num').textContent=Math.ceil(left/1000);
+  // total remaining
+  let rest=left/1000; for(let j=T.idx+1;j<T.plan.length;j++) rest+=T.plan[j].d;
+  $('total').textContent='残り '+fmt(rest)+' / 合計 '+fmt(totalSec(S.current));
+}
+function render(){
+  const c=S.current, b=$('bStart');
+  $('prog').setAttribute('stroke-dasharray',CIRC);
+  $('hTitle').textContent=c.name||'タイマー';
+  if(T.state==='idle'){
+    setPhaseClass(null);
+    $('phase').textContent='READY'; $('exname').textContent=exList(c)[0]||'';
+    $('num').textContent=c.work; $('prog').style.strokeDashoffset='0';
+    $('vSets').textContent=c.sets; $('vCount').textContent=c.reps;
+    $('next').textContent=c.work+'秒 / 休憩'+c.rest+'秒 × '+c.reps+'回 × '+c.sets+'セット';
+    $('total').textContent='合計 '+fmt(totalSec(c));
+    b.textContent='Start'; b.classList.remove('pause');
+    $('bReset').hidden=true; $('bSkip').hidden=true;
+    $('hR').textContent='Edit'; $('hR').style.visibility='visible';
+    return;
+  }
+  if(T.state==='done'){
+    $('phase').textContent='FINISH'; $('exname').textContent='お疲れさまでした';
+    $('num').textContent='0'; $('prog').style.strokeDashoffset=String(CIRC);
+    $('next').textContent='トレーニング時間 '+fmt(T.elapsedBefore/1000);
+    $('total').textContent='';
+    b.textContent='もう一度'; b.classList.remove('pause');
+    $('bReset').hidden=false; $('bSkip').hidden=true;
+    $('hR').style.visibility='visible';
+    return;
+  }
+  const ph=T.plan[T.idx];
+  $('phase').textContent=PH[ph.k]+(T.state==='pause'?'（一時停止）':'');
+  const n=nextWork(T.idx);
+  if(ph.k==='work'){ $('exname').textContent=ph.ex||''; $('next').textContent=n?('次: '+(n.ex||'WORK')+(n.set!==ph.set?'（'+n.set+'セット目）':'')):'ラスト'; }
+  else { $('exname').textContent=n&&n.ex?n.ex:''; $('next').textContent=n?'次: '+(n.ex||'WORK'):''; }
+  $('vSets').innerHTML=ph.set+'<small>/'+c.sets+'</small>';
+  const repShown=ph.k==='work'?ph.rep:(ph.k==='prep'?0:ph.rep);
+  $('vCount').innerHTML=repShown+'<small>/'+c.reps+'</small>';
+  if(T.state==='pause') draw(T.remain);
+  b.textContent=T.state==='run'?'Pause':'Resume'; b.classList.toggle('pause',T.state==='run');
+  $('bReset').hidden=false; $('bSkip').hidden=false;
+  $('hR').style.visibility='hidden';
+}
+$('bStart').onclick=()=>{ if(T.state==='run') pause(); else start(); };
+$('bSkip').onclick=skip;
+$('bReset').onclick=async()=>{
+  if(T.state==='done'){T.state='idle';setPhaseClass(null);render();return;}
+  const wasRun=T.state==='run'; if(wasRun) pause();
+  if(await ask('タイマーを終了しますか？\n途中までの記録は履歴に残ります。','終了',true)) finish(false);
+  else if(wasRun) start();
+};
+
+/* ---------- navigation ---------- */
+let curView='timerView';
+function show(v){
+  curView=v;
+  document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id===v));
+  document.querySelectorAll('nav button').forEach(e=>e.classList.toggle('on',e.dataset.v===v));
+  const hL=$('hL'),hR=$('hR'); hL.innerHTML=''; hR.style.visibility='visible';
+  if(v==='timerView'){ render(); }
+  else if(v==='histView'){ $('hTitle').textContent='History'; hR.textContent=''; renderHist(); }
+  else if(v==='menuView'){ $('hTitle').textContent='Menu'; hR.innerHTML='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'; renderMenu(); }
+  else { $('hTitle').textContent='Settings'; hR.textContent=''; renderSettings(); }
+  $('main').scrollTop=0;
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+$('hR').onclick=()=>{
+  if(curView==='timerView'&&(T.state==='idle'||T.state==='done')) openEdit('current');
+  else if(curView==='menuView') openEdit('new');
+};
+
+/* ---------- menu ---------- */
+function renderMenu(){
+  const L=$('menuList');
+  if(!S.menus.length){L.innerHTML='<div class="empty">メニューがありません。<br>右上の＋で作成できます。</div>';return;}
+  L.innerHTML=S.menus.map(m=>`
+    <div class="pcard${S.currentId===m.id?' sel':''}" data-id="${m.id}">
+      <div class="ph">
+        <button data-act="del" aria-label="削除"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+        <div class="t">${esc(m.name||'無題')}</div>
+        <button data-act="edit" aria-label="編集"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"/></svg></button>
+      </div>
+      <div class="pb">
+        <div class="main"><b>${m.work}</b> sec × <b>${m.reps}</b>count × <b>${m.sets}</b> sets</div>
+        <div class="sub2"><div>Interval<b>${m.rest}<small style="font-size:15px"> sec</small></b></div><div>Set Interval<b>${m.setRest}<small style="font-size:15px"> sec</small></b></div></div>
+        <div class="tt">合計 ${fmt(totalSec(m))}${exList(m).length?' ・ 種目 '+exList(m).length+'個':''}</div>
+      </div>
+    </div>`).join('');
+}
+$('menuList').onclick=async e=>{
+  const card=e.target.closest('.pcard'); if(!card)return;
+  const id=card.dataset.id, m=S.menus.find(x=>x.id===id); if(!m)return;
+  const act=e.target.closest('button')&&e.target.closest('button').dataset.act;
+  if(act==='del'){ if(await ask('「'+(m.name||'無題')+'」を削除しますか？','削除',true)){S.menus=S.menus.filter(x=>x.id!==id); if(S.currentId===id)S.currentId=null; save(); renderMenu();} return; }
+  if(act==='edit'){ openEdit(id); return; }
+  if(T.state==='run'||T.state==='pause'){ toast('タイマー実行中は変更できません'); return; }
+  S.current=Object.assign({},m); delete S.current.id; S.currentId=id; T.state='idle'; save(); show('timerView'); toast('「'+(m.name||'無題')+'」をセットしました');
+};
+
+/* ---------- edit sheet ---------- */
+const FIELDS=[
+  ['g1','prep','Preparation time','sec',0,600,1],
+  ['g1','work','Workout','sec',1,3600,5],
+  ['g1','rest','Interval','sec',0,3600,5],
+  ['g1','reps','Repeat','count',1,99,1],
+  ['g2','sets','Set count','sets',1,99,1],
+  ['g2','setRest','Set interval','sec',0,3600,5],
+  ['g3','warnWork','Workout','sec',0,10,1],
+  ['g3','warnRest','Interval','sec',0,10,1],
+];
+['g1','g2','g3'].forEach(g=>$(g).innerHTML='');
+FIELDS.forEach(([g,k,lab,u,min,max,st])=>{
+  const r=document.createElement('div'); r.className='row';
+  r.innerHTML=`<label>${lab}</label><div class="step"><button type="button" data-d="-1">−</button><input type="number" inputmode="numeric" id="f_${k}" min="${min}" max="${max}"><span class="u">${u}</span><button type="button" data-d="1">＋</button></div>`;
+  $(g).appendChild(r);
+  const inp=r.querySelector('input');
+  const clamp=v=>Math.max(min,Math.min(max,isNaN(v)?min:v));
+  r.querySelectorAll('button').forEach(b=>{
+    let iv,to;
+    const go=()=>{inp.value=clamp((parseInt(inp.value,10)||0)+(+b.dataset.d)*st);updSum();};
+    b.addEventListener('pointerdown',e=>{e.preventDefault();go();to=setTimeout(()=>{iv=setInterval(go,90);},400);});
+    ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>{clearTimeout(to);clearInterval(iv);}));
+  });
+  inp.addEventListener('change',()=>{inp.value=clamp(parseInt(inp.value,10));updSum();});
+  inp.addEventListener('input',updSum);
+});
+let editing=null;
+function readForm(){
+  const c={name:$('fName').value.trim(),ex:$('fEx').value};
+  FIELDS.forEach(([,k,,,min,max])=>{let v=parseInt($('f_'+k).value,10);c[k]=Math.max(min,Math.min(max,isNaN(v)?min:v));});
+  return c;
+}
+function updSum(){const c=readForm();$('fSum').textContent='合計時間 '+fmt(totalSec(c));}
+function openEdit(target){
+  editing=target;
+  let c, reg=false;
+  if(target==='current'){c=S.current;reg=!!S.currentId;}
+  else if(target==='new'){c=Object.assign({},DEFAULT.current,{name:'',ex:''});reg=true;}
+  else {c=S.menus.find(m=>m.id===target);reg=true;}
+  $('fName').value=c.name||''; $('fEx').value=c.ex||''; $('fReg').checked=reg;
+  $('fReg').closest('.group').style.display=target==='current'?'':'none';
+  $('fReg').closest('.group').previousElementSibling.style.display=target==='current'?'':'none';
+  FIELDS.forEach(([,k])=>$('f_'+k).value=c[k]);
+  $('eDelete').style.display=(target!=='current'&&target!=='new')?'':'none';
+  updSum(); $('sheet').classList.add('on'); $('sheet').querySelector('main').scrollTop=0;
+}
+function closeEdit(){$('sheet').classList.remove('on');editing=null;}
+$('eClose').onclick=closeEdit;
+$('eSave').onclick=()=>{
+  const c=readForm();
+  if(editing==='current'){
+    S.current=c;
+    if($('fReg').checked){
+      if(S.currentId&&S.menus.find(m=>m.id===S.currentId)){const i=S.menus.findIndex(m=>m.id===S.currentId);S.menus[i]=Object.assign({id:S.currentId},c);}
+      else{const id='m'+Date.now();S.menus.unshift(Object.assign({id},c));S.currentId=id;}
+      toast('メニューに保存しました');
+    }else S.currentId=null;
+    T.state='idle';
+  }else if(editing==='new'){
+    const id='m'+Date.now(); S.menus.unshift(Object.assign({id},c)); toast('メニューを追加しました');
+  }else{
+    const i=S.menus.findIndex(m=>m.id===editing); if(i>=0) S.menus[i]=Object.assign({id:editing},c);
+    if(S.currentId===editing&&T.state!=='run'&&T.state!=='pause'){S.current=Object.assign({},c);}
+  }
+  save(); closeEdit(); show(curView);
+};
+$('eDelete').onclick=async()=>{
+  if(await ask('このメニューを削除しますか？','削除',true)){S.menus=S.menus.filter(m=>m.id!==editing);if(S.currentId===editing)S.currentId=null;save();closeEdit();show(curView);}
+};
+
+/* ---------- history ---------- */
+function renderHist(){
+  const H=S.history, v=$('histView');
+  if(!H.length){v.innerHTML='<div class="empty">まだ記録がありません。<br>タイマーを使うと自動で記録されます。</div>';return;}
+  const now=new Date(); const wk=new Date(now); wk.setDate(now.getDate()-6); wk.setHours(0,0,0,0);
+  const week=H.filter(h=>h.at>=wk.getTime());
+  const days=new Set(week.map(h=>new Date(h.at).toDateString())).size;
+  let html=`<div class="stats"><div><b>${week.length}</b><span>過去7日 回数</span></div><div><b>${fmt(week.reduce((a,h)=>a+h.dur,0))}</b><span>過去7日 時間</span></div><div><b>${days}</b><span>過去7日 日数</span></div></div>`;
+  let lastDay='';
+  const wd='日月火水木金土';
+  H.forEach(h=>{
+    const d=new Date(h.at); const key=d.toDateString();
+    if(key!==lastDay){lastDay=key;html+=`<div class="hday">${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}（${wd[d.getDay()]}）</div>`;}
+    html+=`<div class="hrow"><div class="n">${esc(h.name)}<span class="badge${h.done?'':' x'}">${h.done?'完了':'途中終了'}</span><small>${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} ・ ${h.reps}/${h.total} count</small></div><div class="d">${fmt(h.dur)}</div></div>`;
+  });
+  v.innerHTML=html;
+}
+
+/* ---------- settings ---------- */
+function renderSettings(){
+  $('sSound').checked=S.settings.sound; $('sVoice').checked=S.settings.voice; $('sVol').value=S.settings.vol; $('sWake').checked=S.settings.wake;
+}
+$('sSound').onchange=e=>{S.settings.sound=e.target.checked;save();unlockAudio();beep(880,0.15);};
+$('sVoice').onchange=e=>{S.settings.voice=e.target.checked;save();speak('音声をオンにしました');};
+$('sVol').oninput=e=>{S.settings.vol=+e.target.value;save();};
+$('sVol').onchange=()=>{unlockAudio();beep(880,0.15);};
+$('sWake').onchange=e=>{S.settings.wake=e.target.checked;save();};
+$('bExport').onclick=async()=>{
+  try{await navigator.clipboard.writeText(JSON.stringify({menus:S.menus,history:S.history}));toast('クリップボードにコピーしました');}
+  catch(e){toast('コピーできませんでした');}
+};
+$('bImport').onclick=()=>{
+  const box=document.createElement('div'); box.className='dialog on';
+  box.innerHTML='<div class="box"><p>バックアップのテキストを貼り付けてください</p><textarea style="min-height:100px;border-top:1px solid #e3e3e8;font-size:13px"></textarea><div class="bt"><button>キャンセル</button><button>読み込む</button></div></div>';
+  document.body.appendChild(box);
+  const [no,yes]=box.querySelectorAll('.bt button');
+  no.onclick=()=>box.remove();
+  yes.onclick=()=>{
+    try{const d=JSON.parse(box.querySelector('textarea').value); if(!Array.isArray(d.menus))throw 0;
+      S.menus=d.menus; if(Array.isArray(d.history))S.history=d.history; save(); toast('読み込みました');}
+    catch(e){toast('形式が正しくありません');}
+    box.remove();
+  };
+};
+$('bClearHist').onclick=async()=>{if(await ask('履歴をすべて削除しますか？','削除',true)){S.history=[];save();toast('削除しました');}};
+
+render();
+})();
+</script>
+</body>
+</html>
